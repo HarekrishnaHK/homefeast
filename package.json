@@ -1,0 +1,22 @@
+{
+  "name": "homefeast",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HomeFeast — homemade tiffin & food service platform (monorepo)",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:studio": "prisma studio --schema=prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "prisma": "^5.19.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

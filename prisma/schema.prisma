@@ -1,0 +1,447 @@
+// ============================================================================
+// HomeFeast — Prisma Schema
+// PostgreSQL database schema for the homemade tiffin & food service platform
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+// ENUMS
+// ----------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  COOK
+  ADMIN
+}
+
+enum CookStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum FoodType {
+  VEG
+  NON_VEG
+  EGG
+  VEGAN
+}
+
+enum PlanType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  REJECTED
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  UPI
+  NET_BANKING
+  WALLET
+  COD
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum NotificationType {
+  ORDER
+  SUBSCRIPTION
+  PAYMENT
+  SYSTEM
+  REVIEW
+  COOK_APPROVAL
+}
+
+// ----------------------------------------------------------------------------
+// CORE USER
+// ----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?  @unique
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  avatarUrl    String?
+  city         String?
+  isActive     Boolean  @default(true)
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  homeCook      HomeCook?
+  orders        Order[]        @relation("CustomerOrders")
+  subscriptions Subscription[] @relation("CustomerSubscriptions")
+  reviews       Review[]       @relation("CustomerReviews")
+  complaints    Complaint[]    @relation("ComplaintUser")
+  notifications Notification[]
+  favorites     Favorite[]
+  payments      Payment[]
+  refreshTokens RefreshToken[]
+  addresses     Address[]
+
+  @@index([role])
+  @@index([city])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  @@index([userId])
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String // Home, Work, etc.
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  isDefault Boolean @default(false)
+  latitude  Float?
+  longitude Float?
+
+  orders Order[]
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------------
+// HOME COOK / TIFFIN PROVIDER
+// ----------------------------------------------------------------------------
+
+model HomeCook {
+  id             String     @id @default(cuid())
+  userId         String     @unique
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName   String
+  slug           String     @unique
+  bio            String?
+  coverImageUrl  String?
+  status         CookStatus @default(PENDING)
+  city           String
+  serviceAreas   String[] // list of pincodes / localities served
+  cuisines       Cuisine[]  @relation("CookCuisines")
+  foodType       FoodType[]
+  deliveryStart  String // e.g. "11:00"
+  deliveryEnd    String // e.g. "14:00"
+  avgRating      Float      @default(0)
+  totalReviews   Int        @default(0)
+  totalOrders    Int        @default(0)
+  fssaiLicenseNo String?
+  approvedAt     DateTime?
+  approvedById   String?
+  rejectedReason String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  menus         Menu[]
+  orders        Order[]        @relation("CookOrders")
+  subscriptions Subscription[] @relation("CookSubscriptions")
+  reviews       Review[]       @relation("CookReviews")
+  categories    Category[]     @relation("CookCategories")
+  complaints    Complaint[]    @relation("ComplaintCook")
+  favorites     Favorite[]
+  payouts       Payout[]
+
+  @@index([status])
+  @@index([city])
+  @@index([slug])
+}
+
+model Payout {
+  id         String   @id @default(cuid())
+  cookId     String
+  cook       HomeCook @relation(fields: [cookId], references: [id], onDelete: Cascade)
+  amount     Decimal  @db.Decimal(10, 2)
+  periodFrom DateTime
+  periodTo   DateTime
+  status     PaymentStatus @default(PENDING)
+  createdAt  DateTime @default(now())
+
+  @@index([cookId])
+}
+
+// ----------------------------------------------------------------------------
+// CATEGORY / CUISINE (Admin-managed taxonomy)
+// ----------------------------------------------------------------------------
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  slug      String     @unique
+  isActive  Boolean    @default(true)
+  cooks     HomeCook[] @relation("CookCategories")
+  createdAt DateTime   @default(now())
+}
+
+model Cuisine {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  slug      String     @unique
+  isActive  Boolean    @default(true)
+  cooks     HomeCook[] @relation("CookCuisines")
+  menuItems MenuItem[]
+  createdAt DateTime   @default(now())
+}
+
+// ----------------------------------------------------------------------------
+// MENU
+// ----------------------------------------------------------------------------
+
+model Menu {
+  id        String     @id @default(cuid())
+  cookId    String
+  cook      HomeCook   @relation(fields: [cookId], references: [id], onDelete: Cascade)
+  name      String // e.g. "Weekday Lunch Menu"
+  planType  PlanType
+  price     Decimal    @db.Decimal(10, 2)
+  isActive  Boolean    @default(true)
+  items     MenuItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  orderItems       OrderItem[]
+  subscriptionMenus Subscription[]
+
+  @@index([cookId])
+  @@index([planType])
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  menuId      String
+  menu        Menu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  imageUrl    String?
+  foodType    FoodType
+  cuisineId   String?
+  cuisine     Cuisine? @relation(fields: [cuisineId], references: [id])
+  price       Decimal  @db.Decimal(10, 2)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([menuId])
+}
+
+// ----------------------------------------------------------------------------
+// ORDERS
+// ----------------------------------------------------------------------------
+
+model Order {
+  id           String      @id @default(cuid())
+  customerId   String
+  customer     User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  cookId       String
+  cook         HomeCook    @relation("CookOrders", fields: [cookId], references: [id])
+  addressId    String?
+  address      Address?    @relation(fields: [addressId], references: [id])
+  status       OrderStatus @default(PLACED)
+  totalAmount  Decimal     @db.Decimal(10, 2)
+  deliveryDate DateTime
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  items    OrderItem[]
+  review   Review?
+  payment  Payment?
+  complaint Complaint?
+
+  @@index([customerId])
+  @@index([cookId])
+  @@index([status])
+  @@index([deliveryDate])
+}
+
+model OrderItem {
+  id       String  @id @default(cuid())
+  orderId  String
+  order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuId   String
+  menu     Menu    @relation(fields: [menuId], references: [id])
+  quantity Int     @default(1)
+  price    Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
+// ----------------------------------------------------------------------------
+// SUBSCRIPTIONS
+// ----------------------------------------------------------------------------
+
+model Subscription {
+  id         String             @id @default(cuid())
+  customerId String
+  customer   User               @relation("CustomerSubscriptions", fields: [customerId], references: [id])
+  cookId     String
+  cook       HomeCook           @relation("CookSubscriptions", fields: [cookId], references: [id])
+  menuId     String
+  menu       Menu               @relation(fields: [menuId], references: [id])
+  planType   PlanType
+  status     SubscriptionStatus @default(ACTIVE)
+  startDate  DateTime
+  endDate    DateTime
+  autoRenew  Boolean            @default(true)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([cookId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// PAYMENTS
+// ----------------------------------------------------------------------------
+
+model Payment {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  orderId        String?       @unique
+  order          Order?        @relation(fields: [orderId], references: [id])
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  amount         Decimal       @db.Decimal(10, 2)
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  transactionRef String?       @unique
+  createdAt      DateTime      @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// REVIEWS
+// ----------------------------------------------------------------------------
+
+model Review {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   User     @relation("CustomerReviews", fields: [customerId], references: [id])
+  cookId     String
+  cook       HomeCook @relation("CookReviews", fields: [cookId], references: [id])
+  orderId    String?  @unique
+  order      Order?   @relation(fields: [orderId], references: [id])
+  rating     Int // 1-5
+  comment    String?
+  cookReply  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([cookId])
+  @@index([customerId])
+}
+
+// ----------------------------------------------------------------------------
+// FAVORITES / WISHLIST
+// ----------------------------------------------------------------------------
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cookId    String
+  cook      HomeCook @relation(fields: [cookId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, cookId])
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------------
+// COMPLAINTS
+// ----------------------------------------------------------------------------
+
+model Complaint {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation("ComplaintUser", fields: [userId], references: [id])
+  cookId      String?
+  cook        HomeCook?       @relation("ComplaintCook", fields: [cookId], references: [id])
+  orderId     String?         @unique
+  order       Order?          @relation(fields: [orderId], references: [id])
+  subject     String
+  description String
+  status      ComplaintStatus @default(OPEN)
+  resolution  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// NOTIFICATIONS
+// ----------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
