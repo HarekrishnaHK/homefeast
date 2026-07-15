@@ -37,7 +37,8 @@ const provider = {
   ],
 };
 
-export default function ProviderDetailPage({ params }: { params: { slug: string } }) {
+export default async function ProviderDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
   return (
     <div>
       <div className="relative h-64 sm:h-80 bg-paperDim">
