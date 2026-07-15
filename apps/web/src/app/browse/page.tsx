@@ -78,17 +78,19 @@ const filterGroups = [
   { label: "Cuisine", options: ["North Indian", "South Indian", "Bengali", "Gujarati", "Mughlai"] },
 ];
 
-export default function BrowsePage({
+export default async function BrowsePage({
   searchParams,
 }: {
-  searchParams?: { q?: string };
+  searchParams?: Promise<{ q?: string }>;
 }) {
+  const params = await searchParams;
+
   return (
     <div className="container-hf py-10">
       <div className="mb-8">
         <h1 className="font-display text-3xl font-semibold">Find a home cook</h1>
         <p className="text-ink/60 mt-2">
-          {searchParams?.q ? `Results for "${searchParams.q}"` : "Browse verified home cooks and tiffin providers near you."}
+          {params?.q ? `Results for "${params.q}"` : "Browse verified home cooks and tiffin providers near you."}
         </p>
       </div>
 
@@ -96,7 +98,7 @@ export default function BrowsePage({
         <div className="flex-1 flex items-center gap-2 bg-white rounded-full px-5 py-3 border border-ink/10">
           <Search size={17} className="text-ink/40" />
           <input
-            defaultValue={searchParams?.q}
+            defaultValue={params?.q}
             placeholder="Search by cuisine, cook, or neighborhood"
             className="w-full bg-transparent text-sm focus:outline-none"
           />
