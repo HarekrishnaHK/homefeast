@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { TiffinMark } from "@/components/TiffinStack";
 
-export default function RegisterPage({
-  searchParams,
-}: {
-  searchParams?: { role?: string };
-}) {
-  const isCook = searchParams?.role === "cook";
+export default async function RegisterPage({
+     searchParams,
+   }: {
+     searchParams?: Promise<{ role?: string }>;
+   }) {
+     const params = await searchParams;
+     const isCook = params?.role === "cook";
 
   return (
     <div className="container-hf py-20 flex justify-center">
