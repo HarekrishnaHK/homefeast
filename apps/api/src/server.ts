@@ -22,12 +22,7 @@ const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
 // --- Security & core middleware -------------------------------------------
 app.use(helmet()); // secure HTTP headers
-app.use(
-  cors({
-    origin: CLIENT_URL,
-    credentials: true, // allow refresh-token cookie
-  })
-);
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
